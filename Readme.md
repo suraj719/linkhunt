@@ -7,7 +7,10 @@ The **LinkHunt** is a full-stack application designed to automate the retrieval 
 ## Demo Video
 
 For a complete demonstration of how to install, set up, and use LinkHunt, please watch the following YouTube video:
-<iframe width="560" height="315" src="https://www.youtube.com/embed/XElrZLUn5OA?si=GHVe2OGr8l1rO26h" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+[![Watch the demo](https://i.ytimg.com/an_webp/XElrZLUn5OA/mqdefault_6s.webp?du=3000&sqp=CID58LcG&rs=AOn4CLBbY-6EdOVbT9AVmhyzHYRuI9r1bg)](https://youtu.be/XElrZLUn5OA)
+
+---
 
 ### Stack:
 
