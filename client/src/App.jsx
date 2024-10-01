@@ -2,14 +2,17 @@ import React, { useState } from "react";
 import axios from "axios";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
-import { FaSort, FaDownload } from "react-icons/fa";
+import ResultData from "./components/ResultData";
+import LinkedinData from "./components/LinkedinData";
+import { toast } from "react-toastify";
 
 function App() {
   const [rollNumbers, setRollNumbers] = useState("");
   const [results, setResults] = useState([]);
+  const [linkedinResults, setLinkedinResults] = useState([]);
   const [filterText, setFilterText] = useState("");
-  const [sortConfig, setSortConfig] = useState(null);
-
+  const [viewLinkedin, setViewLinkedin] = useState(false);
+  const [linkedinFetched, setLinkedinFetched] = useState(false); // State to track if LinkedIn data has been fetched
   // Handle form submit and scrape data
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,44 +24,48 @@ function App() {
     }
     const rollNumberArray = rollNumbers.split(",").map((num) => num.trim());
 
+    // Fetch CVR Results
     try {
-      const response = await axios.post("http://localhost:5000/scrape", {
+      const response = await axios.post("http://localhost:5000/result", {
         rollNumbers: rollNumberArray,
       });
       setResults(response.data);
+      setViewLinkedin(false); // Reset to view CVR results
+      setLinkedinFetched(false); // Reset LinkedIn fetched state
+      toast.success("Results fetched successfully!!");
     } catch (error) {
-      console.error("Error fetching data:", error);
+      toast.error("error fetching results... try again!!!");
+      console.error("Error fetching CVR data:", error);
     }
   };
 
-  // Sorting logic
-  const sortResults = (key) => {
-    let sortedResults = [...filteredResults];
-    if (sortConfig && sortConfig.key === key && !sortConfig.ascending) {
-      sortedResults.reverse();
-    } else {
-      sortedResults.sort((a, b) => (a[key] < b[key] ? 1 : -1));
+  // Fetch LinkedIn Profiles on button click
+  const fetchLinkedinProfiles = async () => {
+    try {
+      const linkedinResponse = await axios.post(
+        "http://localhost:5000/linkedin",
+        {
+          students: results,
+        }
+      );
+      setLinkedinResults(linkedinResponse.data);
+      setLinkedinFetched(true); // Set the LinkedIn fetched state to true
+      setViewLinkedin(true);
+      toast.success("Profiles fetched successfully!!");
+    } catch (error) {
+      toast.error("error fetching profiles... try again!!!");
+      console.error("Error fetching LinkedIn data:", error);
     }
-    setResults(sortedResults);
-    setSortConfig({
-      key,
-      ascending: !sortConfig || sortConfig.key !== key || !sortConfig.ascending,
-    });
   };
 
-  // Filter results based on search input
-  const filteredResults = results.filter((result) =>
-    result.name.toLowerCase().includes(filterText.toLowerCase())
-  );
-
-  // PDF download function
+  // PDF download function for CVR results
   const downloadPDF = () => {
     const doc = new jsPDF();
-    doc.text("📄 CVR Results", 14, 16);
+    doc.text("CVR Results", 14, 16);
     doc.autoTable({
       startY: 26,
       head: [["Roll Number", "Name", "SGPA", "CGPA"]],
-      body: filteredResults.map((result) => [
+      body: results.map((result) => [
         result.rollNumber,
         result.name,
         result.sgpa,
@@ -66,6 +73,54 @@ function App() {
       ]),
     });
     doc.save("results.pdf");
+    toast.success("Results downloaded successfully!!");
+  };
+
+  // PDF download function for LinkedIn results
+  const downloadLinkedInPDF = () => {
+    const doc = new jsPDF();
+    doc.text("LinkedIn Profiles", 14, 16);
+
+    const body = [];
+
+    linkedinResults.forEach((student) => {
+      const { rollNumber, name, profiles } = student;
+
+      // If there are profiles, create rows for each one
+      if (profiles.length > 0) {
+        profiles.forEach((profile, index) => {
+          if (index === 0) {
+            // For the first profile, include roll number and name
+            body.push([
+              rollNumber,
+              name,
+              profile.profileName,
+              profile.profileLink,
+            ]);
+          } else {
+            // For subsequent profiles, omit roll number and name
+            body.push([
+              "", // Empty for roll number
+              "", // Empty for name
+              profile.profileName,
+              profile.profileLink,
+            ]);
+          }
+        });
+      } else {
+        // If no profiles found, include a row with a message
+        body.push([rollNumber, name, "No Profiles Found", ""]);
+      }
+    });
+
+    // Create the PDF table
+    doc.autoTable({
+      startY: 26,
+      head: [["Roll Number", "Name", "Profile Name", "Profile Link"]],
+      body,
+    });
+    doc.save("linkedin_profiles.pdf");
+    toast.success("linkedin data downloaded successfully!!");
   };
 
   return (
@@ -92,67 +147,69 @@ function App() {
       </form>
 
       {/* Filter input */}
-      <input
-        type="text"
-        placeholder="🔍 Filter by name"
-        value={filterText}
-        onChange={(e) => setFilterText(e.target.value)}
-        className="w-full p-2 bg-gray-800 text-white border border-gray-700 rounded-md mb-4"
-      />
+      {results.length > 0 && (
+        <input
+          type="text"
+          placeholder="🔍 Filter by name"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          className="w-full p-2 bg-gray-800 text-white border border-gray-700 rounded-md mb-4"
+        />
+      )}
 
-      {/* Download PDF Button */}
-      {filteredResults.length > 0 && (
-        <div className="mt-4 text-right mb-4">
+      <div className="mt-4 text-right mb-4">
+        {results.length > 0 && (
           <button
             onClick={downloadPDF}
-            className="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 transition duration-200 flex items-center justify-center"
+            className="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 transition duration-200 mr-2"
           >
-            <FaDownload className="mr-2" /> Download as PDF
+            Download Marksheet
+          </button>
+        )}
+        {linkedinResults.length > 0 && (
+          <button
+            onClick={downloadLinkedInPDF}
+            className="bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition duration-200 mr-2"
+          >
+            Download LinkedIn Data
+          </button>
+        )}
+        {linkedinResults.length > 0 && (
+          <button
+            onClick={() => setViewLinkedin(!viewLinkedin)}
+            className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-200"
+          >
+            {viewLinkedin ? "Show CVR Results" : "Show LinkedIn Profiles"}
+          </button>
+        )}
+      </div>
+
+      {/* Fetch LinkedIn Data Button */}
+      {results.length > 0 && !linkedinFetched && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={fetchLinkedinProfiles}
+            className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-200"
+          >
+            Fetch LinkedIn Profiles
           </button>
         </div>
       )}
 
       {/* Results Table */}
-      {filteredResults.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-gray-800 border border-gray-700">
-            <thead>
-              <tr className="bg-gray-700">
-                <th className="py-2 px-4 text-left">Roll Number</th>
-                <th className="py-2 px-4 text-left">Name</th>
-                <th
-                  className="py-2 px-4 text-left cursor-pointer"
-                  onClick={() => sortResults("sgpa")}
-                >
-                  SGPA <FaSort className="inline-block" />
-                </th>
-                <th
-                  className="py-2 px-4 text-left cursor-pointer"
-                  onClick={() => sortResults("cgpa")}
-                >
-                  CGPA <FaSort className="inline-block" />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array(1)
-                .fill(filteredResults)
-                .flat()
-                .map((result, index) => (
-                  <tr key={index} className="border-t border-gray-700">
-                    <td className="py-2 px-4">{result.rollNumber}</td>
-                    <td className="py-2 px-4">{result.name}</td>
-                    <td className="py-2 px-4">{result.sgpa}</td>
-                    <td className="py-2 px-4">{result.cgpa}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
+      {results.length > 0 ? (
         <>
-          <p className="text-center">No data found ⟳</p>
+          {viewLinkedin ? (
+            <LinkedinData
+              linkedinResults={linkedinResults}
+              filterText={filterText}
+            />
+          ) : (
+            <ResultData results={results} filterText={filterText} />
+          )}
         </>
+      ) : (
+        <></>
       )}
     </div>
   );

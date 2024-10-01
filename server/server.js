@@ -5,19 +5,19 @@ const bodyParser = require("body-parser");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
+const debugURL =
+  "ws://127.0.0.1:9222/devtools/browser/606639a6-fc7c-4734-8382-9441f54d93b2";
 app.use(cors());
 app.use(bodyParser.json());
 
 // result scraping route
-app.post("/scrape", async (req, res) => {
+app.post("/result", async (req, res) => {
   const rollNumbers = req.body.rollNumbers;
   const results = [];
 
   try {
     const browser = await puppeteer.connect({
-      browserWSEndpoint:
-        "ws://127.0.0.1:9222/devtools/browser/606639a6-fc7c-4734-8382-9441f54d93b2",
+      browserWSEndpoint: debugURL,
     });
 
     const page = await browser.newPage();
@@ -83,6 +83,127 @@ app.post("/scrape", async (req, res) => {
   }
 });
 
+// LinkedIn scraping route
+app.post("/linkedin", async (req, res) => {
+  const students = req.body.students; // [{ rollNumber, name }, ...]
+  const results = [];
+
+  try {
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: debugURL,
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1080, height: 1024 });
+
+    for (const student of students) {
+      const { rollNumber, name } = student;
+      console.log(`Searching for ${name} (${rollNumber})`);
+
+      await page.goto(
+        `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
+          name
+        ).toLowerCase()}&origin=GLOBAL_SEARCH_HEADER&schoolFilter=%5B%221557917%22%5D`,
+        { waitUntil: "networkidle2", timeout: 0 }
+      );
+
+      try {
+        // Adjust the timeout and handle no profile found gracefully
+        await page.waitForSelector(".reusable-search__entity-result-list", {
+          timeout: 1000,
+        });
+
+        const profiles = await page.evaluate(() => {
+          const profileNodes = document.querySelectorAll(
+            ".reusable-search__entity-result-list .reusable-search__result-container"
+          );
+
+          const profileData = [];
+
+          profileNodes.forEach((profile) => {
+            const imageElement = profile.querySelector(
+              '.entity-result__universal-image .ivm-image-view-model .ivm-view-attr__img-wrapper img[id^="ember"]'
+            );
+            const imageUrl = imageElement ? imageElement.src : "";
+
+            const profileLinkElement = profile.querySelector(
+              ".entity-result__title-text a.app-aware-link"
+            );
+            let profileLink = profileLinkElement
+              ? profileLinkElement.href
+              : null;
+
+            if (profileLink) {
+              const url = new URL(profileLink);
+              profileLink = url.origin + url.pathname;
+            } else {
+              profileLink = "";
+            }
+
+            const profileNameElement = profile.querySelector(
+              ".entity-result__title-text a.app-aware-link span span:nth-child(1)"
+            );
+            const profileName = profileNameElement
+              ? profileNameElement.innerText
+              : "";
+
+            profileData.push({
+              profileName: profileName,
+              profileLink: profileLink,
+              imageUrl: imageUrl,
+            });
+          });
+
+          return profileData;
+        });
+
+        // Check if profiles array is empty and push appropriate message
+        if (profiles.length === 0) {
+          results.push({
+            rollNumber,
+            name,
+            profiles: [],
+          });
+        } else {
+          results.push({
+            rollNumber,
+            name,
+            profiles: profiles,
+          });
+        }
+      } catch (error) {
+        // Handle the timeout error specifically
+        if (error.name === "TimeoutError") {
+          console.log(`No profiles found for ${name} (${rollNumber}).`);
+          results.push({
+            rollNumber,
+            name,
+            profiles: [],
+          });
+        } else {
+          console.error(
+            `Error fetching data for ${name} (${rollNumber}):`,
+            error
+          );
+          results.push({
+            rollNumber,
+            name,
+            profiles: [], // still push empty if there's another error
+          });
+        }
+      } finally {
+        console.log(`Data for ${rollNumber} has been processed.`);
+      }
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error("Error fetching LinkedIn data:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while scraping LinkedIn data." });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
