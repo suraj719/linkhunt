@@ -6,15 +6,20 @@ const bodyParser = require("body-parser");
 const app = express();
 const PORT = process.env.PORT || 5000;
 const debugURL =
-  "ws://127.0.0.1:9222/devtools/browser/606639a6-fc7c-4734-8382-9441f54d93b2";
+  "ws://127.0.0.1:9222/devtools/browser/1c42924c-1e75-4ec3-9e7d-0425dfb21407";
 app.use(cors());
 app.use(bodyParser.json());
 
 // result scraping route
 app.post("/result", async (req, res) => {
   const rollNumbers = req.body.rollNumbers;
+  const year = req.body.year || "3";
   const results = [];
-
+  const examID =
+    (year === "2" && "bt12e46x060498NF") ||
+    (year === "3" && "bt12e46x060523NF") ||
+    (year === "4" && "bt12e46x060516NF") ||
+    "bt12e46x060523NF";
   try {
     const browser = await puppeteer.connect({
       browserWSEndpoint: debugURL,
@@ -26,11 +31,9 @@ app.post("/result", async (req, res) => {
     console.log("Please solve the CAPTCHA manually.");
     await new Promise((resolve) => setTimeout(resolve, 3000));
     await page.waitForSelector(
-      'a[href="/cvrresults1/result.php?resid=bt12e46x060523NF"]'
+      `a[href="/cvrresults1/result.php?resid=${examID}"]`
     );
-    await page.click(
-      'a[href="/cvrresults1/result.php?resid=bt12e46x060523NF"]'
-    );
+    await page.click(`a[href="/cvrresults1/result.php?resid=${examID}"]`);
     console.log("Navigated to the form page!");
 
     for (const rollNumber of rollNumbers) {
@@ -41,7 +44,7 @@ app.post("/result", async (req, res) => {
       await page.click('button[type="submit"]');
       console.log("Submitted the roll number!");
 
-      await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait for results to load
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for results to load
 
       const resultData = await page.evaluate(() => {
         const nametable = document.querySelectorAll(".bttable.blue")[0];
@@ -75,7 +78,7 @@ app.post("/result", async (req, res) => {
       console.log("Extracted Data:", resultData);
       results.push({ rollNumber, ...resultData });
     }
-
+    page.close();
     res.json(results);
   } catch (error) {
     console.error("Error fetching data:", error);
@@ -195,7 +198,7 @@ app.post("/linkedin", async (req, res) => {
         console.log(`Data for ${rollNumber} has been processed.`);
       }
     }
-
+    page.close();
     res.json(results);
   } catch (error) {
     console.error("Error fetching LinkedIn data:", error);
