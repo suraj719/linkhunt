@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { jsPDF } from "jspdf";
+import { FaGithub } from "react-icons/fa";
 import "jspdf-autotable";
 import ResultData from "./components/ResultData";
 import LinkedinData from "./components/LinkedinData";
@@ -9,9 +10,11 @@ import { toast } from "react-toastify";
 function App() {
   const [rollNumbers, setRollNumbers] = useState("");
   const [results, setResults] = useState([]);
+  const [selectedYear, setSelectedYear] = useState("3");
   const [linkedinResults, setLinkedinResults] = useState([]);
   const [filterText, setFilterText] = useState("");
   const [viewLinkedin, setViewLinkedin] = useState(false);
+  const [sortConfig, setSortConfig] = useState(null);
   const [linkedinFetched, setLinkedinFetched] = useState(false); // State to track if LinkedIn data has been fetched
   // Handle form submit and scrape data
   const handleSubmit = async (e) => {
@@ -28,6 +31,7 @@ function App() {
     try {
       const response = await axios.post("http://localhost:5000/result", {
         rollNumbers: rollNumberArray,
+        year: selectedYear,
       });
       setResults(response.data);
       setViewLinkedin(false); // Reset to view CVR results
@@ -122,11 +126,38 @@ function App() {
     doc.save("linkedin_profiles.pdf");
     toast.success("linkedin data downloaded successfully!!");
   };
-
+  const filteredResults = !filterText.trim()
+    ? results
+    : results.filter((result) =>
+        result.name.toLowerCase().includes(filterText.toLowerCase())
+      );
+  const sortResults = (key) => {
+    let sortedResults = [...filteredResults];
+    if (sortConfig && sortConfig.key === key && !sortConfig.ascending) {
+      sortedResults.reverse();
+    } else {
+      sortedResults.sort((a, b) => (a[key] < b[key] ? 1 : -1));
+    }
+    setResults(sortedResults);
+    setSortConfig({
+      key,
+      ascending: !sortConfig || sortConfig.key !== key || !sortConfig.ascending,
+    });
+  };
   return (
     <div className="max-w-100 min-h-[100vh] h-auto mx-auto p-8 bg-gray-900 text-white">
+      <div>
+        {/* <a
+          href="https://github.com/suraj719/linkhunt"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute top-4 left-4 text-white hover:text-gray-400 transition duration-200"
+        >
+          <FaGithub size={30} />
+        </a> */}
+      </div>
       <h1 className="text-4xl font-bold text-center mb-8">
-        🎓 CVR Students Data Scraper 📊
+        🎓 CVR Students Data Scraper 🎓
       </h1>
 
       {/* Form */}
@@ -138,6 +169,41 @@ function App() {
           rows={3}
           className="w-full p-2 bg-gray-800 text-white border border-gray-700 rounded-md mb-4"
         />
+
+        {/* Year Selection Radio Buttons */}
+        <div className="mb-4">
+          <label className="mr-4 text-white">
+            <input
+              type="radio"
+              value="2"
+              checked={selectedYear === "2"}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="mr-2"
+            />
+            2nd Year (B23)
+          </label>
+          <label className="mr-4 text-white">
+            <input
+              type="radio"
+              value="3"
+              checked={selectedYear === "3"}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="mr-2"
+            />
+            3rd Year (B22)
+          </label>
+          <label className="mr-4 text-white">
+            <input
+              type="radio"
+              value="4"
+              checked={selectedYear === "4"}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="mr-2"
+            />
+            4th Year (B21)
+          </label>
+        </div>
+
         <button
           type="submit"
           className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-200"
@@ -147,7 +213,7 @@ function App() {
       </form>
 
       {/* Filter input */}
-      {results.length > 0 && (
+      {filteredResults.length > 0 && (
         <input
           type="text"
           placeholder="🔍 Filter by name"
@@ -158,46 +224,42 @@ function App() {
       )}
 
       <div className="mt-4 text-right mb-4">
-        {results.length > 0 && (
+        {filteredResults.length > 0 && !linkedinFetched && (
+          <button
+            onClick={fetchLinkedinProfiles}
+            className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-200 mr-2"
+          >
+            Fetch LinkedIn Profiles
+          </button>
+        )}
+        {filteredResults.length > 0 && (
           <button
             onClick={downloadPDF}
-            className="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 transition duration-200 mr-2"
+            className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200 mr-2"
           >
-            Download Marksheet
+            Download Marksheet📜
           </button>
         )}
         {linkedinResults.length > 0 && (
           <button
             onClick={downloadLinkedInPDF}
-            className="bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition duration-200 mr-2"
+            className="bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700 transition duration-200 mr-2"
           >
-            Download LinkedIn Data
+            Download LinkedIn Data👀
           </button>
         )}
         {linkedinResults.length > 0 && (
           <button
             onClick={() => setViewLinkedin(!viewLinkedin)}
-            className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-200"
+            className="bg-cyan-600 text-white py-2 px-4 rounded-md hover:bg-cyan-700 transition duration-200"
           >
-            {viewLinkedin ? "Show CVR Results" : "Show LinkedIn Profiles"}
+            {viewLinkedin ? "Show Results🎯" : "Show LinkedIn Profiles🤩"}
           </button>
         )}
       </div>
 
-      {/* Fetch LinkedIn Data Button */}
-      {results.length > 0 && !linkedinFetched && (
-        <div className="mt-4 text-center">
-          <button
-            onClick={fetchLinkedinProfiles}
-            className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-200"
-          >
-            Fetch LinkedIn Profiles
-          </button>
-        </div>
-      )}
-
       {/* Results Table */}
-      {results.length > 0 ? (
+      {filteredResults.length > 0 ? (
         <>
           {viewLinkedin ? (
             <LinkedinData
@@ -205,7 +267,11 @@ function App() {
               filterText={filterText}
             />
           ) : (
-            <ResultData results={results} filterText={filterText} />
+            <ResultData
+              results={filteredResults}
+              sortResults={sortResults}
+              filterText={filterText}
+            />
           )}
         </>
       ) : (
